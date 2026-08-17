@@ -2,6 +2,28 @@
 
 require_once __DIR__.'/../vendor/autoload.php';
 
+/*
+|--------------------------------------------------------------------------
+| Define Missing Laravel Helpers for Lumen
+|--------------------------------------------------------------------------
+|
+| Lumen does not include app_path() or public_path() by default.
+| Defining them here resolves "Call to undefined function app_path()".
+|
+*/
+
+if (!function_exists('app_path')) {
+    function app_path($path = '') {
+        return app()->basePath('app') . ($path ? DIRECTORY_SEPARATOR . $path : '');
+    }
+}
+
+if (!function_exists('public_path')) {
+    function public_path($path = '') {
+        return app()->basePath('public') . ($path ? DIRECTORY_SEPARATOR . $path : '');
+    }
+}
+
 (new Laravel\Lumen\Bootstrap\LoadEnvironmentVariables(
     dirname(__DIR__)
 ))->bootstrap();
@@ -51,16 +73,7 @@ $app->singleton(
 
 $app->configure('app');
 $app->configure('auth');
-
-/*
-|--------------------------------------------------------------------------
-| Register Middleware
-|--------------------------------------------------------------------------
-*/
-
-$app->routeMiddleware([
-    'auth' => App\Http\Middleware\Authenticate::class,
-]);
+$app->configure('view'); // Added to resolve view & compiler dependencies
 
 /*
 |--------------------------------------------------------------------------
@@ -71,6 +84,19 @@ $app->routeMiddleware([
 // $app->register(App\Providers\AppServiceProvider::class);
 // $app->register(App\Providers\AuthServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
+
+// Fixes: BindingResolutionException [$cachePath] in class Illuminate\View\Compilers\Compiler
+$app->register(Illuminate\View\ViewServiceProvider::class);
+
+/*
+|--------------------------------------------------------------------------
+| Register Middleware
+|--------------------------------------------------------------------------
+*/
+$app->middleware([
+    App\Http\Middleware\CorsMiddleware::class,
+]);
+
 
 /*
 |--------------------------------------------------------------------------
