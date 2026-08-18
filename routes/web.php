@@ -46,4 +46,4 @@ $router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComerc
 $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialController@crearCuenta');
 
 
-$router->get('comisiones', 'ComisionController@index');
+$router->get('/api/comisiones', 'ComisionController@index');
