@@ -30,3 +30,15 @@ $router->group(['middleware' => 'auth'], function () use ($router) {
 
 // Correcto si no usas grupos con prefijo
 $router->post('/api/socios-comerciales-crea-cuenta', 'SocioController@crearCuenta');
+
+/*
+|--------------------------------------------------------------------------
+| Categorías de Socios Comerciales
+|--------------------------------------------------------------------------
+*/
+
+$router->get('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@index');
+$router->post('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@store');
+$router->get('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@show');
+$router->put('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@update');
+$router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@destroy');
