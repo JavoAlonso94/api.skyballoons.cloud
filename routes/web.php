@@ -25,7 +25,6 @@ $router->post('/api/socios/login', 'AuthController@socioLogin');
 
 $router->group(['middleware' => 'auth'], function () use ($router) {
     $router->put('/api/socios/{id}', 'SocioController@update');
-    $router->get('comisiones', 'ComisionController@index');
 });
 
 
@@ -45,3 +44,6 @@ $router->put('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercial
 $router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@destroy');
 
 $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialController@crearCuenta');
+
+
+$router->get('comisiones', 'ComisionController@index');
