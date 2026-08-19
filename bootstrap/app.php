@@ -93,10 +93,16 @@ $app->register(Illuminate\View\ViewServiceProvider::class);
 | Register Middleware
 |--------------------------------------------------------------------------
 */
+
+// Middleware global (se ejecuta en todas las rutas)
 $app->middleware([
     App\Http\Middleware\CorsMiddleware::class,
 ]);
 
+// Middleware de ruta (se asigna a rutas específicas)
+$app->routeMiddleware([
+    'auth.socio' => App\Http\Middleware\AuthenticateSocio::class,
+]);
 
 /*
 |--------------------------------------------------------------------------

@@ -7,17 +7,17 @@ Formato de Respuesta: JSON
 
 🔑 Token de Prueba
 bash
-TOKEN="dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+TOKEN="48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 📝 Casos de Prueba
 1. ✅ Consulta con Token Válido
 Descripción: Consulta las comisiones del socio autenticado.
 
 Comando:
-
+ 
 bash
 curl -X GET "https://api.skyballoons.cloud/api/comisiones" \
   -H "Accept: application/json" \
-  -H "Authorization: Bearer dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+  -H "Authorization: Bearer 48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 Respuesta Esperada:
 
 json
@@ -69,7 +69,7 @@ Comando:
 bash
 curl -X GET "https://api.skyballoons.cloud/api/comisiones?socio_id=5" \
   -H "Accept: application/json" \
-  -H "Authorization: Bearer dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+  -H "Authorization: Bearer 48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 Respuesta Esperada:
 
 json
@@ -104,7 +104,7 @@ Comando:
 bash
 curl -X GET "https://api.skyballoons.cloud/api/comisiones?estado=pendiente&fecha_inicio=2026-08-01&fecha_fin=2026-08-31" \
   -H "Accept: application/json" \
-  -H "Authorization: Bearer dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+  -H "Authorization: Bearer 48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 Respuesta Esperada:
 
 json
@@ -189,7 +189,7 @@ bash
 
 # Configuración
 BASE_URL="https://api.skyballoons.cloud"
-TOKEN="dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+TOKEN="48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 
 # Función para mostrar resultados formateados
 show_result() {
@@ -242,7 +242,7 @@ cat > test_comisiones.sh << 'EOF'
 #!/bin/bash
 
 BASE_URL="https://api.skyballoons.cloud"
-TOKEN="dc79a8955d0d92689bfedc5a90cd05904cd363d48580621ad24dd2b7d8f734efee3e98ca0adc154b"
+TOKEN="48f87a2d137cd03cace59a333680cdb338bd63e3e1d6eb8b4190b83b785d364db246e01b03153766"
 
 echo "=== PRUEBA 1: Consulta normal ==="
 curl -s -X GET "$BASE_URL/api/comisiones" \
