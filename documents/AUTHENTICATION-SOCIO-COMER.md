@@ -85,12 +85,12 @@ Content-Type: application/json
 ## Request
 
 ```bash
-curl -i -X POST http://localhost:8000/api/socios/login \
+curl -i -X POST https://api.skyballoons.cloud/api/socios/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "mda@skyballoons.mx",
-    "password": "TU_PASSWORD"
+    "email": "prueba@skyballoons.cloud",
+    "password": "7#t8|/iWP~&>"
   }'
 ```
 
