@@ -26,6 +26,9 @@ $router->post('/api/socios/login', 'AuthController@socioLogin');
 $router->group(['middleware' => 'auth.socio'], function () use ($router) {
     $router->get('/api/comisiones', 'ComisionController@index');
     $router->get('/api/comisiones/paginado', 'ComisionController@indexPaginado');
+    $router->get('/api/vuelos', 'VueloController@index');
+    $router->post('/api/reservaciones', 'ReservacionController@store');
+    $router->get('/api/promociones', 'DescuentoController@index');
 });
 
 // Correcto si no usas grupos con prefijo
@@ -45,3 +48,19 @@ $router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComerc
 
 $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialController@crearCuenta');
 
+$router->get('/api/db-test', function () {
+    try {
+        $results = \Illuminate\Support\Facades\DB::select('SELECT VERSION() as version');
+
+        return response()->json([
+            'success' => true,
+            'message' => '¡Conexión exitosa a la base de datos cloud_skyballoons!',
+            'mysql_version' => $results[0]->version ?? 'Desconocida'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
