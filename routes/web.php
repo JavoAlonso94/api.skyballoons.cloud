@@ -55,6 +55,22 @@ $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialControll
 $router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
 $router->get('/api/servicios-adicionales/esquema', 'ServicioAdicionalController@esquema');
 
+/*
+|--------------------------------------------------------------------------
+| Pasajeros de Reservaciones
+|--------------------------------------------------------------------------
+*/
+
+$router->get('/api/pasajeros', 'PasajeroController@index');
+$router->post('/api/pasajeros', 'PasajeroController@store');
+$router->get('/api/pasajeros/esquema', 'PasajeroController@esquema');
+
+/*
+|--------------------------------------------------------------------------
+| Diagnóstico
+|--------------------------------------------------------------------------
+*/
+
 $router->get('/api/db-test', function () {
     try {
         $results = \Illuminate\Support\Facades\DB::select('SELECT VERSION() as version');
