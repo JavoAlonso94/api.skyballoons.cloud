@@ -3,51 +3,29 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB; // Importación obligatoria de la clase DB
+use Illuminate\Support\Facades\DB;
 
 class ServicioAdicionalController extends Controller
 {
-    /**
-     * Obtiene la lista de servicios adicionales activos usando DB Query Builder
-     */
     public function index()
-    {
-        // Se utiliza DB::table para evitar que el código se rompa si se agregan campos.
-        // Se incluye una estructura de INNER JOIN comentada por si a futuro necesitas vincularlo con categorías de la base de datos.
-        $adicionales = DB::table('servicios_adicionales as sa')
-            /*
-             * Ejemplo de INNER JOIN listo para usarse si tu BD lo requiere:
-             * ->join('categorias_adicionales as ca', 'sa.categoria_id', '=', 'ca.id')
-             */
-            ->select(
-                'sa.id',
-                'sa.nombre',
-                'sa.descripcion',
-                'sa.imagen',
-                'sa.precio',
-                'sa.estado'
-            )
-            ->where('sa.estado', '=', 'Activo') // Filtramos solo los que están en estado "Activo"
+{
+        // Filtramos por estatus activo y visibilidad para cotizaciones/socios
+        $servicios = DB::table('servicios_adicionales')
+            ->where('id_estatus', 1)
+            ->where('visibilidad_cotizaciones', 1) // Este campo limita a los servicios del portal
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $adicionales
-        ], 200);
-    }
+        $formateados = $servicios->map(function ($servicio) {
+            return [
+                'id'          => $servicio->id_servicio_adicional,
+                'nombre'      => $servicio->descripcion,
+                'descripcion' => $servicio->observaciones,
+                'imagen'      => null,
+                'precio'      => $servicio->precio,
+                'estado'      => 'Activo'
+            ];
+        });
 
-    /**
-     * Endpoint para obtener el esquema de la tabla usando DESCRIBE.
-     * Esto permite a los desarrolladores o a la app saber qué columnas existen dinámicamente.
-     */
-    public function esquema()
-    {
-        // Ejecuta el comando SQL nativo DESCRIBE
-        $esquema = DB::select('DESCRIBE servicios_adicionales');
-
-        return response()->json([
-            'success' => true,
-            'esquema' => $esquema
-        ], 200);
+        return response()->json($formateados, 200);
     }
 }
