@@ -65,22 +65,22 @@ class AuthController extends Controller
             );
         }
 
-        if ($acceso->estado !== 'activo') {
-            return response()->json(
-                [
-                    'message' => 'El acceso del socio no está activo',
-                    'estado' => $acceso->estado,
-                ],
-                403,
-            );
-        }
-
+        // Primero la contraseña: no revelamos el estado de la cuenta a quien no la conoce
         if (!Hash::check($password, $acceso->password)) {
             return response()->json(
                 [
                     'message' => 'Credenciales incorrectas',
                 ],
                 401,
+            );
+        }
+
+        if ($acceso->estado !== 'activo') {
+            return response()->json(
+                [
+                    'message' => 'El acceso del socio no está activo',
+                ],
+                403,
             );
         }
 

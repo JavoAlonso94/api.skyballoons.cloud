@@ -3,61 +3,74 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB; // Importación obligatoria de la clase DB
+use Illuminate\Support\Facades\DB;
 
 class PasajeroController extends Controller
 {
     /**
-     * Obtiene la lista de pasajeros, con opción de filtrar por reservacion_id
+     * Pasajeros de las reservaciones DEL SOCIO AUTENTICADO.
+     * GET /api/pasajeros?reservacion_id=X
      */
     public function index(Request $request)
     {
         try {
-            $query = DB::table('reservacion_pasajeros')
-                ->whereNull('deleted_at'); // Ignoramos registros eliminados (Soft Delete)
+            $socioId = $this->socioAutenticadoId($request);
 
-            // Si envían un id de reservación como parámetro (?reservacion_id=X)
-            if ($request->has('reservacion_id')) {
-                $query->where('reservacion_id', $request->input('reservacion_id'));
+            // INNER JOIN con reservaciones: solo se ven pasajeros de reservaciones del socio
+            $query = DB::table('reservacion_pasajeros as p')
+                ->join('reservaciones_socios_comerciales as r', 'p.reservacion_id', '=', 'r.id')
+                ->select([
+                    'p.id',
+                    'p.reservacion_id',
+                    'p.nombres',
+                    'p.apellido_paterno',
+                    'p.apellido_materno',
+                    'p.fecha_nacimiento',
+                    'p.peso_aproximado',
+                    'p.idioma_id',
+                    'p.nombre_preferido_certificado',
+                    'p.firma',
+                    'p.created_at',
+                    'p.updated_at',
+                ])
+                ->where('r.socio_id', $socioId)
+                ->whereNull('p.deleted_at');
+
+            if ($request->filled('reservacion_id')) {
+                $query->where('p.reservacion_id', $request->input('reservacion_id'));
             }
 
-            $pasajeros = $query->get();
-
-            // Mapeo estructurado para el frontend
-            $formateados = $pasajeros->map(function ($pasajero) {
+            $formateados = $query->orderBy('p.id')->get()->map(function ($p) {
                 return [
-                    'id'                           => $pasajero->id,
-                    'reservacion_id'               => $pasajero->reservacion_id,
-                    'nombres'                      => $pasajero->nombres,
-                    'apellido_paterno'             => $pasajero->apellido_paterno,
-                    'apellido_materno'             => $pasajero->apellido_materno,
-                    'nombre_completo'              => trim("{$pasajero->nombres} {$pasajero->apellido_paterno} {$pasajero->apellido_materno}"),
-                    'fecha_nacimiento'             => $pasajero->fecha_nacimiento,
-                    'peso_aproximado'              => $pasajero->peso_aproximado,
-                    'idioma_id'                    => $pasajero->idioma_id,
-                    'nombre_preferido_certificado' => $pasajero->nombre_preferido_certificado,
-                    'firma'                        => $pasajero->firma,
-                    'created_at'                   => $pasajero->created_at,
-                    'updated_at'                   => $pasajero->updated_at
+                    'id'                           => $p->id,
+                    'reservacion_id'               => $p->reservacion_id,
+                    'nombres'                      => $p->nombres,
+                    'apellido_paterno'             => $p->apellido_paterno,
+                    'apellido_materno'             => $p->apellido_materno,
+                    'nombre_completo'              => trim("{$p->nombres} {$p->apellido_paterno} {$p->apellido_materno}"),
+                    'fecha_nacimiento'             => $p->fecha_nacimiento,
+                    'peso_aproximado'              => $p->peso_aproximado,
+                    'idioma_id'                    => $p->idioma_id,
+                    'nombre_preferido_certificado' => $p->nombre_preferido_certificado,
+                    'firma'                        => $p->firma,
+                    'created_at'                   => $p->created_at,
+                    'updated_at'                   => $p->updated_at,
                 ];
             });
 
             return response()->json([
                 'success' => true,
-                'data'    => $formateados
+                'data'    => $formateados,
             ], 200);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener los pasajeros',
-                'error'   => $e->getMessage()
-            ], 500);
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Error al obtener los pasajeros');
         }
     }
 
     /**
-     * Guarda un nuevo pasajero asociado a una reservación
+     * Registra un pasajero en una reservación DEL SOCIO AUTENTICADO.
+     * POST /api/pasajeros
      */
     public function store(Request $request)
     {
@@ -65,12 +78,35 @@ class PasajeroController extends Controller
             'reservacion_id'   => 'required|integer',
             'nombres'          => 'required|string|max:255',
             'apellido_paterno' => 'required|string|max:255',
-            'peso_aproximado'  => 'required|numeric'
+            'apellido_materno' => 'nullable|string|max:255',
+            'fecha_nacimiento' => 'nullable|date',
+            'peso_aproximado'  => 'required|numeric|min:1',
+            'idioma_id'        => 'nullable|integer',
+            'nombre_preferido_certificado' => 'nullable|string|max:255',
+            'firma'            => 'nullable|string',
         ]);
 
         try {
+            $socioId = $this->socioAutenticadoId($request);
+
+            // La reservación debe pertenecer al socio del token
+            $reservacion = DB::table('reservaciones_socios_comerciales as r')
+                ->where('r.id', $request->input('reservacion_id'))
+                ->where('r.socio_id', $socioId)
+                ->select(['r.id'])
+                ->first();
+
+            if (!$reservacion) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Reservación no encontrada',
+                ], 404);
+            }
+
+            $ahora = date('Y-m-d H:i:s');
+
             $id = DB::table('reservacion_pasajeros')->insertGetId([
-                'reservacion_id'               => $request->input('reservacion_id'),
+                'reservacion_id'               => $reservacion->id,
                 'nombres'                      => $request->input('nombres'),
                 'apellido_paterno'             => $request->input('apellido_paterno'),
                 'apellido_materno'             => $request->input('apellido_materno'),
@@ -79,44 +115,21 @@ class PasajeroController extends Controller
                 'idioma_id'                    => $request->input('idioma_id', 1),
                 'nombre_preferido_certificado' => $request->input('nombre_preferido_certificado'),
                 'firma'                        => $request->input('firma'),
-                'created_at'                   => date('Y-m-d H:i:s'),
-                'updated_at'                   => date('Y-m-d H:i:s')
+                'created_at'                   => $ahora,
+                'updated_at'                   => $ahora,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Pasajero registrado correctamente',
-                'id'      => $id
+                'id'      => $id,
             ], 201);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al registrar el pasajero',
-                'error'   => $e->getMessage()
-            ], 500);
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Error al registrar el pasajero');
         }
     }
 
-    /**
-     * Endpoint para obtener el esquema exacto de la tabla reservacion_pasajeros
-     */
-    public function esquema()
-    {
-        try {
-            $esquema = DB::select('DESCRIBE reservacion_pasajeros');
-
-            return response()->json([
-                'success' => true,
-                'esquema' => $esquema
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al consultar el esquema de la tabla',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
-    }
+    // El método esquema() (DESCRIBE reservacion_pasajeros) se ELIMINÓ:
+    // exponer la estructura de la BD por HTTP es una mala práctica de seguridad.
 }

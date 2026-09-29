@@ -2,26 +2,91 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class ComisionController extends Controller
 {
+    /**
+     * Todas las comisiones del socio autenticado.
+     * GET /api/comisiones
+     */
     public function index(Request $request)
     {
-        // Verificar si es un socio autenticado
-        $socioAutenticadoId = $request->socio_autenticado_id ?? null;
+        try {
+            $socioId  = $this->socioAutenticadoId($request);
+            $query    = $this->consulta($request, $socioId);
 
-        // Si hay socio autenticado, forzar el filtro
-        if ($socioAutenticadoId) {
-            $request->merge(['socio_id' => $socioAutenticadoId]);
+            $comisiones = $query->orderBy('com.fecha_generacion', 'desc')->get();
+
+            return response()->json([
+                'status'            => 'success',
+                'filtros'           => $this->filtros($request, $socioId),
+                'resumen'           => [
+                    'sumatoria_comisiones' => (float) $comisiones->sum('monto_comision'),
+                    'total_registros'      => $comisiones->count(),
+                ],
+                'data'              => $comisiones->map(fn ($row) => $this->transformar($row))->values(),
+                'socio_autenticado' => [
+                    'id'    => $socioId,
+                    'email' => $request->input('socio_autenticado_email'),
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Ocurrió un error al obtener las comisiones');
         }
+    }
 
-        // Si no hay socio autenticado, permitir filtro manual (para admin)
-        $socioId = $request->input('socio_id');
+    /**
+     * Comisiones paginadas.
+     * GET /api/comisiones/paginado?page=1&per_page=20
+     *
+     * (La ruta existía pero el método no, y devolvía error 500.)
+     */
+    public function indexPaginado(Request $request)
+    {
+        try {
+            $socioId = $this->socioAutenticadoId($request);
+            $page    = max(1, (int) $request->input('page', 1));
+            $perPage = min(100, max(1, (int) $request->input('per_page', 20)));
 
-        // Construir la consulta base con los joins
+            $query = $this->consulta($request, $socioId);
+
+            $totalRegistros = (clone $query)->count();
+            $sumatoria      = (clone $query)->sum('com.monto_comision');
+
+            $comisiones = $query
+                ->orderBy('com.fecha_generacion', 'desc')
+                ->forPage($page, $perPage)
+                ->get();
+
+            return response()->json([
+                'status'     => 'success',
+                'filtros'    => $this->filtros($request, $socioId),
+                'resumen'    => [
+                    'sumatoria_comisiones' => (float) $sumatoria,
+                    'total_registros'      => $totalRegistros,
+                ],
+                'paginacion' => [
+                    'page'      => $page,
+                    'per_page'  => $perPage,
+                    'last_page' => (int) ceil($totalRegistros / $perPage),
+                ],
+                'data'       => $comisiones->map(fn ($row) => $this->transformar($row))->values(),
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Ocurrió un error al obtener las comisiones');
+        }
+    }
+
+    /**
+     * Query base con JOIN / LEFT JOIN. El socio SIEMPRE es el del token.
+     */
+    private function consulta(Request $request, int $socioId)
+    {
         $query = DB::table('socios_comerciales_comisiones as com')
             ->join('socios_comerciales as s', 'com.socio_comercial_id', '=', 's.id')
             ->leftJoin('socios_comerciales_configuracion_comisiones as conf', 'com.configuracion_id', '=', 'conf.id')
@@ -41,92 +106,61 @@ class ComisionController extends Controller
                 'u.name as usuario_pago_nombre',
                 'com.observaciones',
                 'com.configuracion_id',
-                DB::raw('IFNULL(conf.tipo, "-") as config_tipo'),
-                DB::raw('IFNULL(conf.valor, 0) as config_valor')
-            ]);
+                DB::raw("IFNULL(conf.tipo, '-') as config_tipo"),
+                DB::raw('IFNULL(conf.valor, 0) as config_valor'),
+            ])
+            ->where('com.socio_comercial_id', $socioId);
 
-        // Aplicar filtro de socio (obligatorio si es socio autenticado)
-        if ($socioId) {
-            $query->where('com.socio_comercial_id', $socioId);
-        } elseif ($socioAutenticadoId) {
-            $query->where('com.socio_comercial_id', $socioAutenticadoId);
-        }
-
-        // Aplicar filtros adicionales
         if ($request->filled('estado')) {
-            $query->where('com.estado', $request->estado);
+            $query->where('com.estado', $request->input('estado'));
         }
-
         if ($request->filled('fecha_inicio')) {
-            $query->whereDate('com.fecha_generacion', '>=', $request->fecha_inicio);
+            $query->whereDate('com.fecha_generacion', '>=', $request->input('fecha_inicio'));
         }
-
         if ($request->filled('fecha_fin')) {
-            $query->whereDate('com.fecha_generacion', '<=', $request->fecha_fin);
+            $query->whereDate('com.fecha_generacion', '<=', $request->input('fecha_fin'));
         }
-
         if ($request->filled('pedido_venta_id')) {
-            $query->where('com.pedido_venta_id', $request->pedido_venta_id);
+            $query->where('com.pedido_venta_id', $request->input('pedido_venta_id'));
         }
 
-        // Obtener resultados
-        $comisiones = $query->orderBy('com.fecha_generacion', 'desc')->get();
+        return $query;
+    }
 
-        // Transformar los datos
-        $data = $comisiones->map(function ($row) {
-            return [
-                'id' => $row->id,
-                'socio_comercial_id' => $row->socio_comercial_id,
-                'socio_nombre' => $row->socio_nombre,
-                'pedido_codigo' => $row->pedido_codigo,
-                'tipo' => $row->tipo,
-                'valor_configurado' => $row->tipo === 'porcentaje'
-                    ? $row->valor_configurado . '%'
-                    : number_format($row->valor_configurado, 2),
-                'base_calculo' => number_format($row->base_calculo, 2),
-                'monto_comision' => number_format($row->monto_comision, 2),
-                'estado' => $row->estado,
-                'fecha_generacion' => Carbon::parse($row->fecha_generacion)->format('d/m/Y H:i'),
-                'fecha_pago' => $row->fecha_pago
-                    ? Carbon::parse($row->fecha_pago)->format('d/m/Y H:i')
-                    : '-',
-                'usuario_pago_nombre' => $row->usuario_pago_nombre ?? '-',
-                'observaciones' => $row->observaciones ?? '',
-                'configuracion' => $row->configuracion_id
-                    ? $row->config_tipo . ' (' . $row->config_valor . ')'
-                    : 'Manual / Vuelo',
-            ];
-        });
-
-        // Calcular totales
-        $totalComisiones = $comisiones->sum('monto_comision');
-        $totalRegistros = $comisiones->count();
-
-        // Respuesta JSON
-        $response = [
-            'status' => 'success',
-            'filtros' => [
-                'socio_id' => $socioId,
-                'estado' => $request->estado ?? null,
-                'fecha_inicio' => $request->fecha_inicio ?? null,
-                'fecha_fin' => $request->fecha_fin ?? null,
-                'pedido_venta_id' => $request->pedido_venta_id ?? null,
-            ],
-            'resumen' => [
-                'sumatoria_comisiones' => (float) $totalComisiones,
-                'total_registros' => $totalRegistros,
-            ],
-            'data' => $data
+    private function filtros(Request $request, int $socioId): array
+    {
+        return [
+            'socio_id'        => $socioId,
+            'estado'          => $request->input('estado'),
+            'fecha_inicio'    => $request->input('fecha_inicio'),
+            'fecha_fin'       => $request->input('fecha_fin'),
+            'pedido_venta_id' => $request->input('pedido_venta_id'),
         ];
+    }
 
-        // Si es socio autenticado, agregar información del socio
-        if ($socioAutenticadoId) {
-            $response['socio_autenticado'] = [
-                'id' => $socioAutenticadoId,
-                'email' => $request->socio_autenticado_email ?? null,
-            ];
-        }
-
-        return response()->json($response, 200);
+    private function transformar($row): array
+    {
+        return [
+            'id'                 => $row->id,
+            'socio_comercial_id' => $row->socio_comercial_id,
+            'socio_nombre'       => $row->socio_nombre,
+            'pedido_codigo'      => $row->pedido_codigo,
+            'tipo'               => $row->tipo,
+            'valor_configurado'  => $row->tipo === 'porcentaje'
+                ? $row->valor_configurado . '%'
+                : number_format($row->valor_configurado, 2),
+            'base_calculo'       => number_format($row->base_calculo, 2),
+            'monto_comision'     => number_format($row->monto_comision, 2),
+            'estado'             => $row->estado,
+            'fecha_generacion'   => Carbon::parse($row->fecha_generacion)->format('d/m/Y H:i'),
+            'fecha_pago'         => $row->fecha_pago
+                ? Carbon::parse($row->fecha_pago)->format('d/m/Y H:i')
+                : '-',
+            'usuario_pago_nombre' => $row->usuario_pago_nombre ?? '-',
+            'observaciones'      => $row->observaciones ?? '',
+            'configuracion'      => $row->configuracion_id
+                ? $row->config_tipo . ' (' . $row->config_valor . ')'
+                : 'Manual / Vuelo',
+        ];
     }
 }

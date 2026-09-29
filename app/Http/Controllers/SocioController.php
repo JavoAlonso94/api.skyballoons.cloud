@@ -10,6 +10,124 @@ use Illuminate\Support\Facades\Hash;
 class SocioController extends Controller
 {
     /**
+     * Obtener el perfil del socio autenticado actual.
+     * GET /api/socio/perfil
+     */
+    public function show(Request $request)
+    {
+        // Obtenemos el token de la cabecera Authorization
+        $token = str_replace('Bearer ', '', $request->header('Authorization'));
+
+        if (!$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No autorizado.',
+            ], 401);
+        }
+
+        // Buscamos el acceso mediante el token activo
+        $acceso = DB::table('socio_accesos')
+            ->where('api_token', $token)
+            ->first();
+
+        if (!$acceso) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token inválido o expirado.',
+            ], 401);
+        }
+
+        // Consultamos los datos del socio comercial
+        $socio = DB::table('socios_comerciales')
+            ->where('id', $acceso->socio_id)
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'socio' => $socio,
+                'cuenta' => [
+                    'email' => $acceso->email,
+                    'estado' => $acceso->estado,
+                    'ultimo_acceso' => $acceso->ultimo_acceso,
+                ]
+            ]
+        ], 200);
+    }
+
+    /**
+     * Actualizar el perfil del socio autenticado (incluyendo foto/logo).
+     * POST /api/socio/perfil
+     */
+    public function updatePerfil(Request $request)
+    {
+        $token = str_replace('Bearer ', '', $request->header('Authorization'));
+
+        $acceso = DB::table('socio_accesos')
+            ->where('api_token', $token)
+            ->first();
+
+        if (!$acceso) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No autorizado.',
+            ], 401);
+        }
+
+        $id = $acceso->socio_id;
+
+        // Validamos los campos que el socio puede editar de su perfil
+        $validator = Validator::make($request->all(), [
+            'nombre'             => 'required|string|max:200',
+            'razon_social'       => 'nullable|string|max:200',
+            'telefono'           => 'nullable|string|max:50',
+            'direccion'          => 'nullable|string',
+            'sitio_web'          => 'nullable|string|max:200',
+            'logo'               => 'nullable|string|max:255', // Aquí llega la URL o ruta de la foto/logo
+            'contacto_principal' => 'nullable|string|max:150',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos inválidos.',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            DB::table('socios_comerciales')
+                ->where('id', $id)
+                ->update([
+                    'nombre'             => $request->nombre,
+                    'razon_social'       => $request->razon_social,
+                    'telefono'           => $request->telefono,
+                    'direccion'          => $request->direccion,
+                    'sitio_web'          => $request->sitio_web,
+                    'logo'               => $request->logo,
+                    'contacto_principal' => $request->contacto_principal,
+                    'updated_at'         => date('Y-m-d H:i:s'),
+                ]);
+
+            $socioActualizado = DB::table('socios_comerciales')
+                ->where('id', $id)
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Perfil actualizado correctamente.',
+                'data'    => $socioActualizado,
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo actualizar el perfil.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+    /**
      * Actualizar todos los datos del socio comercial y su cuenta.
      * PUT /api/socios/{id}
      */

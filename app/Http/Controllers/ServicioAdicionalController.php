@@ -7,25 +7,40 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioAdicionalController extends Controller
 {
-    public function index()
-{
-        // Filtramos por estatus activo y visibilidad para cotizaciones/socios
-        $servicios = DB::table('servicios_adicionales')
-            ->where('id_estatus', 1)
-            ->where('visibilidad_cotizaciones', 1) // Este campo limita a los servicios del portal
-            ->get();
+    /**
+     * Servicios adicionales visibles para socios/cotizaciones.
+     * GET /api/servicios-adicionales
+     */
+    public function index(Request $request)
+    {
+        try {
+            $servicios = DB::table('servicios_adicionales as sa')
+                ->select([
+                    'sa.id_servicio_adicional',
+                    'sa.descripcion',
+                    'sa.observaciones',
+                    'sa.precio',
+                ])
+                ->where('sa.id_estatus', 1)
+                ->where('sa.visibilidad_cotizaciones', 1)
+                ->orderBy('sa.descripcion')
+                ->get();
 
-        $formateados = $servicios->map(function ($servicio) {
-            return [
-                'id'          => $servicio->id_servicio_adicional,
-                'nombre'      => $servicio->descripcion,
-                'descripcion' => $servicio->observaciones,
-                'imagen'      => null,
-                'precio'      => $servicio->precio,
-                'estado'      => 'Activo'
-            ];
-        });
+            $formateados = $servicios->map(function ($servicio) {
+                return [
+                    'id'          => $servicio->id_servicio_adicional,
+                    'nombre'      => $servicio->descripcion,
+                    'descripcion' => $servicio->observaciones,
+                    'imagen'      => null,
+                    'precio'      => $servicio->precio,
+                    'estado'      => 'Activo',
+                ];
+            });
 
-        return response()->json($formateados, 200);
+            return response()->json($formateados, 200);
+
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Error al obtener los servicios adicionales');
+        }
     }
 }

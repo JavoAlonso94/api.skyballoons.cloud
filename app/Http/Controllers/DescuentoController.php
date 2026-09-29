@@ -8,31 +8,42 @@ use Illuminate\Http\Request;
 class DescuentoController extends Controller
 {
     /**
-     * Muestra las promociones y descuentos activos para el modal.
+     * Promociones y descuentos vigentes.
+     * GET /api/promociones
      */
     public function index(Request $request)
     {
         try {
-            $hoy = now()->toDateString();
+            $hoy = date('Y-m-d');
 
-            // Consultamos los descuentos que estén activos y cuya vigencia cubra la fecha actual
-            $descuentos = Descuento::where('estado', 1)
-                ->where('vigencia_inicio', '<=', $hoy)
-                ->where('vigencia_fin', '>=', $hoy)
+            // LEFT JOIN: un descuento puede no tener empresa asignada (aplica global)
+            $descuentos = DB::table('descuentos as d')
+                ->leftJoin('empresas as e', 'd.empresa_id', '=', 'e.id')
+                ->select([
+                    'd.id',
+                    'd.empresa_id',
+                    'e.nombre as empresa',
+                    'd.nombre',
+                    'd.tipo',
+                    'd.valor',
+                    'd.aplica_a',
+                    'd.vigencia_inicio',
+                    'd.vigencia_fin',
+                ])
+                ->where('d.estado', 1)
+                ->where('d.vigencia_inicio', '<=', $hoy)
+                ->where('d.vigencia_fin', '>=', $hoy)
+                ->orderBy('d.vigencia_fin')
                 ->get();
 
             return response()->json([
                 'status' => 'success',
-                'total' => $descuentos->count(),
-                'data' => $descuentos
+                'total'  => $descuentos->count(),
+                'data'   => $descuentos,
             ], 200);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Ocurrió un error al obtener las promociones',
-                'error' => $e->getMessage()
-            ], 500);
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Ocurrió un error al obtener las promociones');
         }
     }
 }

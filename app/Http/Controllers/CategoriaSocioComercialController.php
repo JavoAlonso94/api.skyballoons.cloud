@@ -10,12 +10,32 @@ class CategoriaSocioComercialController extends Controller
     private $table = 'categorias_socios_comerciales';
 
     /**
-     * Obtener todos los registros
+     * Categorías activas (para el formulario de registro de socios).
+     * GET /api/categorias-socios-comerciales
      */
     public function index()
     {
-        $categorias = DB::table($this->table)->get();
-        return response()->json($categorias, 200);
+        try {
+            // LEFT JOIN: una categoría puede no tener empresa asignada
+            $categorias = DB::table($this->table . ' as c')
+                ->leftJoin('empresas as e', 'c.empresa_id', '=', 'e.id')
+                ->select([
+                    'c.id',
+                    'c.empresa_id',
+                    'e.nombre as empresa',
+                    'c.nombre',
+                    'c.descripcion',
+                    'c.estado',
+                ])
+                ->where('c.estado', 'activo')
+                ->orderBy('c.nombre')
+                ->get();
+
+            return response()->json($categorias, 200);
+
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Error al obtener las categorías', 'error');
+        }
     }
 
     /**
@@ -50,17 +70,35 @@ class CategoriaSocioComercialController extends Controller
     }
 
     /**
-     * Mostrar un registro específico por ID
+     * Una categoría por ID.
+     * GET /api/categorias-socios-comerciales/{id}
      */
     public function show($id)
     {
-        $categoria = DB::table($this->table)->where('id', $id)->first();
+        try {
+            $categoria = DB::table($this->table . ' as c')
+                ->leftJoin('empresas as e', 'c.empresa_id', '=', 'e.id')
+                ->select([
+                    'c.id',
+                    'c.empresa_id',
+                    'e.nombre as empresa',
+                    'c.nombre',
+                    'c.descripcion',
+                    'c.estado',
+                ])
+                ->where('c.id', $id)
+                ->where('c.estado', 'activo')
+                ->first();
 
-        if (!$categoria) {
-            return response()->json(['error' => 'Categoría no encontrada'], 404);
+            if (!$categoria) {
+                return response()->json(['error' => 'Categoría no encontrada'], 404);
+            }
+
+            return response()->json($categoria, 200);
+
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Error al obtener la categoría', 'error');
         }
-
-        return response()->json($categoria, 200);
     }
 
     /**

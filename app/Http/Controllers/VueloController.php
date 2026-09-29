@@ -2,32 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Vuelo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class VueloController extends Controller
 {
     /**
-     * Muestra el catálogo de vuelos disponibles para socios comerciales.
+     * Catálogo de vuelos activos para socios comerciales.
+     * GET /api/vuelos
      */
     public function index(Request $request)
     {
         try {
-            // Consultamos solo los vuelos activos
-            $vuelos = Vuelo::where('estado', 1)->get();
+            $vuelos = DB::table('vuelos_globo_para_socios_comerciales as v')
+                ->join('empresas as e', 'v.empresa_id', '=', 'e.id')
+                ->select([
+                    'v.id',
+                    'v.categoria_vuelo_id',
+                    'v.empresa_id',
+                    'e.nombre as empresa',
+                    'v.nombre',
+                    'v.descripcion',
+                    'v.duracion_minutos',
+                    'v.capacidad_maxima',
+                    'v.precio_base',
+                    'v.estado',
+                ])
+                ->where('v.estado', 1)
+                ->orderBy('v.nombre')
+                ->get();
 
             return response()->json([
                 'status' => 'success',
-                'total' => $vuelos->count(),
-                'data' => $vuelos
+                'total'  => $vuelos->count(),
+                'data'   => $vuelos,
             ], 200);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Ocurrió un error al obtener el catálogo de vuelos',
-                'error' => $e->getMessage()
-            ], 500);
+        } catch (\Throwable $e) {
+            return $this->errorInterno($e, 'Ocurrió un error al obtener el catálogo de vuelos');
         }
     }
 }
+

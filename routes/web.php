@@ -24,68 +24,52 @@ $router->post('/api/login', 'AuthController@login');
 $router->post('/api/socios/login', 'AuthController@socioLogin');
 
 $router->group(['middleware' => 'auth.socio'], function () use ($router) {
+    // Comisiones
     $router->get('/api/comisiones', 'ComisionController@index');
     $router->get('/api/comisiones/paginado', 'ComisionController@indexPaginado');
-    $router->get('/api/vuelos', 'VueloController@index');
-    $router->post('/api/reservaciones', 'ReservacionController@store');
-    $router->get('/api/promociones', 'DescuentoController@index');
-});
 
-// Correcto si no usas grupos con prefijo
-$router->post('/api/socios-comerciales-crea-cuenta', 'SocioController@crearCuenta');
+    // Catálogo
+    $router->get('/api/vuelos', 'VueloController@index');
+    $router->get('/api/promociones', 'DescuentoController@index');
+    $router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
+
+    // Reservaciones
+    $router->get('/api/reservaciones', 'ReservacionController@index');
+    $router->post('/api/reservaciones', 'ReservacionController@store');
+
+    // Pasajeros de reservaciones
+    $router->get('/api/pasajeros', 'PasajeroController@index');
+    $router->post('/api/pasajeros', 'PasajeroController@store');
+
+    // Perfil del socio y actualización de foto
+    $router->get('/api/socio/perfil', 'SocioController@show');
+    $router->post('/api/socio/perfil', 'SocioController@updatePerfil');
+});
 
 /*
 |--------------------------------------------------------------------------
-| Categorías de Socios Comerciales
+| Registro de socios (público)
 |--------------------------------------------------------------------------
 */
 
-$router->get('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@index');
-$router->post('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@store');
-$router->get('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@show');
-$router->put('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@update');
-$router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@destroy');
 $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialController@crearCuenta');
 
 /*
 |--------------------------------------------------------------------------
-| Servicios Adicionales
+| Categorías de Socios Comerciales (solo lectura, para el formulario de registro)
 |--------------------------------------------------------------------------
+| POST / PUT / DELETE se quitaron de la API pública: cualquiera podía crear,
+| editar o borrar categorías sin autenticarse. Si se necesitan, deben ir
+| detrás de un middleware de administrador.
 */
-$router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
-$router->get('/api/servicios-adicionales/esquema', 'ServicioAdicionalController@esquema');
+
+$router->get('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@index');
+$router->get('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@show');
 
 /*
-|--------------------------------------------------------------------------
-| Pasajeros de Reservaciones
-|--------------------------------------------------------------------------
+| Se eliminaron las rutas de diagnóstico/esquema:
+|   GET /api/db-test
+|   GET /api/pasajeros/esquema
+|   GET /api/servicios-adicionales/esquema
+| Exponían la estructura y la versión de la base de datos sin autenticación.
 */
-
-$router->get('/api/pasajeros', 'PasajeroController@index');
-$router->post('/api/pasajeros', 'PasajeroController@store');
-$router->get('/api/pasajeros/esquema', 'PasajeroController@esquema');
-
-/*
-|--------------------------------------------------------------------------
-| Diagnóstico
-|--------------------------------------------------------------------------
-*/
-
-$router->get('/api/db-test', function () {
-    try {
-        $results = \Illuminate\Support\Facades\DB::select('SELECT VERSION() as version');
-
-        return response()->json([
-            'success' => true,
-            'message' => '¡Conexión exitosa a la base de datos cloud_skyballoons!',
-            'mysql_version' => $results[0]->version ?? 'Desconocida'
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => $e->getMessage()
-        ], 500);
-    }
-});
-
-
