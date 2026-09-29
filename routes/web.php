@@ -45,8 +45,15 @@ $router->post('/api/categorias-socios-comerciales', 'CategoriaSocioComercialCont
 $router->get('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@show');
 $router->put('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@update');
 $router->delete('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@destroy');
-
 $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialController@crearCuenta');
+
+/*
+|--------------------------------------------------------------------------
+| Servicios Adicionales
+|--------------------------------------------------------------------------
+*/
+$router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
+$router->get('/api/servicios-adicionales/esquema', 'ServicioAdicionalController@esquema');
 
 $router->get('/api/db-test', function () {
     try {
@@ -64,3 +71,5 @@ $router->get('/api/db-test', function () {
         ], 500);
     }
 });
+
+
