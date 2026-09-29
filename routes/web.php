@@ -23,15 +23,18 @@ $router->post('/api/login', 'AuthController@login');
 
 $router->post('/api/socios/login', 'AuthController@socioLogin');
 
-$router->group(['middleware' => 'auth.socio'], function () use ($router) {
+$router->group([
+    'middleware' => 'auth.socio',
+    'namespace' => 'App\Http\Controllers'
+], function () use ($router) {
     // Comisiones
     $router->get('/api/comisiones', 'ComisionController@index');
     $router->get('/api/comisiones/paginado', 'ComisionController@indexPaginado');
 
     // Catálogo y Vuelos
     $router->get('/api/vuelos', 'VueloController@index');
-    $router->get('/api/categorias-vuelos', 'CategoriaVueloController@index'); // <-- Agregada para las categorías
-    $router->get('/api/vuelos/{vueloId}/adicionales', 'ServicioAdicionalController@getByVuelo'); // <-- Agregada para los adicionales por vuelo
+    $router->get('/api/categorias-vuelos', 'CategoriaVueloController@index');
+    $router->get('/api/vuelos/{vueloId}/adicionales', 'ServicioAdicionalController@getByVuelo');
     $router->get('/api/promociones', 'DescuentoController@index');
     $router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
 
@@ -58,7 +61,7 @@ $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialControll
 
 /*
 |--------------------------------------------------------------------------
-| Categorías de Socios Comerciales (solo lectura, para el formulario de registro)
+| Categorías de Socios Comerciales (solo lectura)
 |--------------------------------------------------------------------------
 */
 
