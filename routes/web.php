@@ -25,7 +25,6 @@ $router->post('/api/socios/login', 'AuthController@socioLogin');
 
 $router->group([
     'middleware' => 'auth.socio',
-    'namespace' => 'App\Http\Controllers'
 ], function () use ($router) {
     // Comisiones
     $router->get('/api/comisiones', 'ComisionController@index');
