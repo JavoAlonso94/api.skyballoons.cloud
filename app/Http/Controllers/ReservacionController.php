@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Reservacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -11,33 +10,33 @@ class ReservacionController extends Controller
 {
     /**
      * Lista las reservaciones DEL SOCIO AUTENTICADO.
-     * GET /api/reservaciones?estado=&fecha_inicio=&fecha_fin=&page=&per_page=
+     * GET /api/reservaciones
      */
     public function index(Request $request)
     {
         try {
             $socioId = $this->socioAutenticadoId($request);
 
+            // Consulta utilizando JOINs seguros tal como lo requiere el estándar del ERP
             $query = DB::table('reservaciones_socios_comerciales as r')
                 ->join('socios_comerciales as s', 'r.socio_id', '=', 's.id')
                 ->join('vuelos_globo_para_socios_comerciales as v', 'r.vuelo_id', '=', 'v.id')
                 ->join('empresas as e', 'r.empresa_id', '=', 'e.id')
                 ->select([
                     'r.id',
+                    'r.socio_id',
                     's.nombre as socio',
+                    'v.id as vuelo_id',
                     'v.nombre as vuelo',
+                    'e.id as empresa_id',
                     'e.nombre as empresa',
                     'r.fecha_reserva',
                     'r.fecha_vuelo',
                     'r.hora_salida',
                     'r.numero_personas',
-                    'r.subtotal',
-                    'r.impuesto',
-                    'r.descuento',
-                    'r.total',
-                    'r.moneda',
-                    'r.estado',
+                    'r.json_tarifas',
                     'r.created_at',
+                    // Cálculo seguro de pagos asociados desde la tabla relacional
                     DB::raw("COALESCE((SELECT SUM(p.monto)
                                        FROM pagos_socio_comercial_reservacion p
                                        WHERE p.reservacion_id = r.id
@@ -46,12 +45,9 @@ class ReservacionController extends Controller
                                        FROM pagos_socio_comercial_reservacion p2
                                        WHERE p2.reservacion_id = r.id), 0) as cantidad_pagos"),
                 ])
-                // Filtro obligatorio: solo las reservaciones del dueño del token
                 ->where('r.socio_id', $socioId);
 
-            if ($request->filled('estado')) {
-                $query->where('r.estado', $request->input('estado'));
-            }
+            // Filtros opcionales por fecha de vuelo
             if ($request->filled('fecha_inicio')) {
                 $query->whereDate('r.fecha_vuelo', '>=', $request->input('fecha_inicio'));
             }
@@ -68,21 +64,33 @@ class ReservacionController extends Controller
                 ->forPage($page, $perPage)
                 ->get();
 
+            // Decodificamos el JSON de tarifas de manera limpia para la app
+            $reservaciones->transform(function ($item) {
+                if (isset($item->json_tarifas) && is_string($item->json_tarifas)) {
+                    $item->json_tarifas = json_decode($item->json_tarifas);
+                }
+                return $item;
+            });
+
             return response()->json([
-                'status' => 'success',
-                'total'  => $total,
-                'page'   => $page,
+                'status'   => 'success',
+                'total'    => $total,
+                'page'     => $page,
                 'per_page' => $perPage,
-                'data'   => $reservaciones,
+                'data'     => $reservaciones,
             ], 200);
 
         } catch (\Throwable $e) {
-            return $this->errorInterno($e, 'Ocurrió un error al obtener las reservaciones');
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Ocurrió un error al obtener las reservaciones',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
     }
 
     /**
-     * Crea una reservación para el socio autenticado.
+     * Crea una reservación desde la App y la guarda en la misma tabla del ERP.
      * POST /api/reservaciones
      */
     public function store(Request $request)
@@ -93,24 +101,16 @@ class ReservacionController extends Controller
                 'fecha_vuelo'     => 'required|date|after_or_equal:today',
                 'hora_salida'     => 'required|string|max:8',
                 'numero_personas' => 'required|integer|min:1',
-                'json_tarifas'    => 'nullable|array',
-                'subtotal'        => 'required|numeric|min:0',
-                'impuesto'        => 'nullable|numeric|min:0',
-                'descuento'       => 'nullable|numeric|min:0',
-                'total'           => 'required|numeric|min:0',
-                'moneda'          => 'nullable|string|size:3',
-                'observaciones'   => 'nullable|string|max:1000',
+                'json_tarifas'    => 'nullable',
             ]);
 
-            // El socio SIEMPRE sale del token. Antes se aceptaba 'socio_id' del body,
-            // lo que permitía crear reservaciones a nombre de otro socio.
+            // El socio se obtiene de forma segura mediante el token autenticado
             $socioId = $this->socioAutenticadoId($request);
 
-            // El vuelo debe existir y estar activo; de ahí sale la empresa (no del cliente).
+            // Validamos que el vuelo exista en el ERP y obtenemos su empresa asociada
             $vuelo = DB::table('vuelos_globo_para_socios_comerciales as v')
                 ->join('empresas as e', 'v.empresa_id', '=', 'e.id')
                 ->where('v.id', $request->input('vuelo_id'))
-                ->where('v.estado', 1)
                 ->select(['v.id', 'v.empresa_id', 'v.nombre', 'e.nombre as empresa'])
                 ->first();
 
@@ -121,7 +121,11 @@ class ReservacionController extends Controller
                 ], 404);
             }
 
-            $reservacion = Reservacion::create([
+            $jsonTarifasInput = $request->input('json_tarifas');
+            $jsonTarifasEncoded = is_array($jsonTarifasInput) ? json_encode($jsonTarifasInput) : $jsonTarifasInput;
+
+            // Inserción directa en la tabla compartida con el ERP
+            $reservacionId = DB::table('reservaciones_socios_comerciales')->insertGetId([
                 'socio_id'        => $socioId,
                 'vuelo_id'        => $vuelo->id,
                 'empresa_id'      => $vuelo->empresa_id,
@@ -129,39 +133,37 @@ class ReservacionController extends Controller
                 'fecha_vuelo'     => $request->input('fecha_vuelo'),
                 'hora_salida'     => $request->input('hora_salida'),
                 'numero_personas' => $request->input('numero_personas'),
-                'json_tarifas'    => $request->input('json_tarifas'),
-                'subtotal'        => $request->input('subtotal'),
-                'impuesto'        => $request->input('impuesto', 0),
-                'descuento'       => $request->input('descuento', 0),
-                'total'           => $request->input('total'),
-                'moneda'          => strtoupper($request->input('moneda', 'MXN')),
-                'estado'          => 'pendiente',
-                'observaciones'   => $request->input('observaciones'),
+                'json_tarifas'    => $jsonTarifasEncoded,
+                'created_at'      => date('Y-m-d H:i:s'),
+                'updated_at'      => date('Y-m-d H:i:s'),
             ]);
 
-            // Devolvemos el registro ya con sus relaciones (JOIN), no el modelo crudo
+            // Recuperamos el registro recién creado usando el estándar de JOINs del ERP
             $detalle = DB::table('reservaciones_socios_comerciales as r')
                 ->join('socios_comerciales as s', 'r.socio_id', '=', 's.id')
                 ->join('vuelos_globo_para_socios_comerciales as v', 'r.vuelo_id', '=', 'v.id')
                 ->join('empresas as e', 'r.empresa_id', '=', 'e.id')
-                ->where('r.id', $reservacion->id)
+                ->where('r.id', $reservacionId)
                 ->select([
                     'r.id',
+                    'r.socio_id',
                     's.nombre as socio',
+                    'v.id as vuelo_id',
                     'v.nombre as vuelo',
+                    'e.id as empresa_id',
                     'e.nombre as empresa',
+                    'r.fecha_reserva',
                     'r.fecha_vuelo',
                     'r.hora_salida',
                     'r.numero_personas',
-                    'r.subtotal',
-                    'r.impuesto',
-                    'r.descuento',
-                    'r.total',
-                    'r.moneda',
-                    'r.estado',
+                    'r.json_tarifas',
                     'r.created_at',
                 ])
                 ->first();
+
+            if ($detalle && isset($detalle->json_tarifas) && is_string($detalle->json_tarifas)) {
+                $detalle->json_tarifas = json_decode($detalle->json_tarifas);
+            }
 
             return response()->json([
                 'status'  => 'success',
@@ -176,7 +178,11 @@ class ReservacionController extends Controller
                 'errors'  => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
-            return $this->errorInterno($e, 'Ocurrió un error al procesar la reservación');
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Ocurrió un error al procesar la reservación',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
     }
 }

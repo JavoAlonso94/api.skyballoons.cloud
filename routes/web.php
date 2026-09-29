@@ -28,8 +28,10 @@ $router->group(['middleware' => 'auth.socio'], function () use ($router) {
     $router->get('/api/comisiones', 'ComisionController@index');
     $router->get('/api/comisiones/paginado', 'ComisionController@indexPaginado');
 
-    // Catálogo
+    // Catálogo y Vuelos
     $router->get('/api/vuelos', 'VueloController@index');
+    $router->get('/api/categorias-vuelos', 'CategoriaVueloController@index'); // <-- Agregada para las categorías
+    $router->get('/api/vuelos/{vueloId}/adicionales', 'ServicioAdicionalController@getByVuelo'); // <-- Agregada para los adicionales por vuelo
     $router->get('/api/promociones', 'DescuentoController@index');
     $router->get('/api/servicios-adicionales', 'ServicioAdicionalController@index');
 
@@ -58,18 +60,7 @@ $router->post('/api/socios-comerciales-crea-cuenta', 'AltaSocioComercialControll
 |--------------------------------------------------------------------------
 | Categorías de Socios Comerciales (solo lectura, para el formulario de registro)
 |--------------------------------------------------------------------------
-| POST / PUT / DELETE se quitaron de la API pública: cualquiera podía crear,
-| editar o borrar categorías sin autenticarse. Si se necesitan, deben ir
-| detrás de un middleware de administrador.
 */
 
 $router->get('/api/categorias-socios-comerciales', 'CategoriaSocioComercialController@index');
 $router->get('/api/categorias-socios-comerciales/{id}', 'CategoriaSocioComercialController@show');
-
-/*
-| Se eliminaron las rutas de diagnóstico/esquema:
-|   GET /api/db-test
-|   GET /api/pasajeros/esquema
-|   GET /api/servicios-adicionales/esquema
-| Exponían la estructura y la versión de la base de datos sin autenticación.
-*/
