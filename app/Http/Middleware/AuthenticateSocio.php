@@ -28,7 +28,7 @@ class AuthenticateSocio
         }
 
         // 2. Hashear el token para buscarlo
-        $tokenHash = hash('sha256', $token);
+        $tokenHash = md5($token);
 
         $acceso = SocioAcceso::where('api_token', $tokenHash)
             ->where('estado', 'activo')

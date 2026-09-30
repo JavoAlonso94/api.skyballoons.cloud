@@ -95,7 +95,7 @@ class AuthController extends Controller
         $token = bin2hex(random_bytes(40));
 
         // 2. Hashear el token para almacenarlo de forma segura en la base de datos
-        $hashedToken = hash('sha256', $token);
+        $hashedToken = md5($token);
 
         // 3. Definir expiración de 12 horas
         $expiresAt = Carbon::now()->addHours(12);
