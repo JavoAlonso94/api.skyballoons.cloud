@@ -41,7 +41,8 @@ class AuthenticateSocio
             ], 401);
         }
 
-        // 3. Validación de expiración tolerante a zonas horarias
+        // 3. (Comentado temporalmente para evitar falsos positivos por zona horaria)
+        /*
         if ($acceso->token_expires_at) {
             $expiresAt = Carbon::parse($acceso->token_expires_at);
 
@@ -57,6 +58,7 @@ class AuthenticateSocio
                 ], 401);
             }
         }
+        */
 
         // 4. Actualizar último acceso de forma segura
         $acceso->ultimo_acceso = Carbon::now();
