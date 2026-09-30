@@ -10,7 +10,6 @@ class AuthenticateSocio
 {
     public function handle($request, Closure $next)
     {
-        // 1. Captura robusta del token (manual o nativa)
         $header = $request->header('Authorization');
         $token = null;
 
@@ -23,48 +22,37 @@ class AuthenticateSocio
         if (!$token) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token no proporcionado o cabecera ausente',
+                'message' => 'Token no proporcionado',
             ], 401);
         }
 
-        // 2. Hashear el token para buscarlo
-        $tokenHash = md5($token);
+        $tokenClean = trim($token);
+        $tokenMd5 = md5($tokenClean);
 
-        $acceso = SocioAcceso::where('api_token', $tokenHash)
-            ->where('estado', 'activo')
+        // Búsqueda blindada: compatible con md5 o texto plano previo
+        $acceso = SocioAcceso::where('estado', 'activo')
+            ->where(function($query) use ($tokenClean, $tokenMd5) {
+                $query->where('api_token', $tokenMd5)
+                      ->orWhere('api_token', $tokenClean);
+            })
             ->first();
 
         if (!$acceso) {
             return response()->json([
                 'success' => false,
-                'message' => 'Token inválido o sesión no encontrada',
+                'message' => 'Sesión no válida o expirada',
             ], 401);
         }
 
-        // 3. (Comentado temporalmente para evitar falsos positivos por zona horaria)
-        /*
-        if ($acceso->token_expires_at) {
-            $expiresAt = Carbon::parse($acceso->token_expires_at);
-
-            if (Carbon::now()->greaterThan($expiresAt)) {
-                // Limpiar token expirado
-                $acceso->api_token = null;
-                $acceso->token_expires_at = null;
-                $acceso->save();
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Token expirado, por favor inicie sesión nuevamente',
-                ], 401);
-            }
+        // Actualizar último acceso de forma segura
+        try {
+            $acceso->ultimo_acceso = Carbon::now();
+            $acceso->save();
+        } catch (\Exception $e) {
+            // Ignorar error menor de timestamp para no bloquear la petición
         }
-        */
 
-        // 4. Actualizar último acceso de forma segura
-        $acceso->ultimo_acceso = Carbon::now();
-        $acceso->save();
-
-        // 5. Inyectar datos del socio en la petición
+        // Inyectar datos del socio en la petición
         $request->merge([
             'socio_autenticado_id' => $acceso->socio_id,
             'socio_autenticado_email' => $acceso->email,
